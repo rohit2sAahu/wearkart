@@ -1,28 +1,25 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Header } from "@/components/Header";
 import { HeroSection } from "@/components/HeroSection";
 import { CategoryBar } from "@/components/CategoryBar";
 import { ProductGrid } from "@/components/ProductGrid";
 import { Footer } from "@/components/Footer";
-import { products } from "@/data/products";
+import { useProducts, useFeaturedProducts, useCategories } from "@/hooks/useProducts";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const Index = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const featuredProducts = useMemo(() => {
-    return products.filter((p) => p.featured);
-  }, []);
+  const { data: allProducts, isLoading: productsLoading } = useProducts({
+    category: selectedCategory || undefined,
+    search: searchQuery || undefined,
+  });
 
-  const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
-      const matchesCategory = !selectedCategory || product.category === selectedCategory;
-      const matchesSearch = !searchQuery || 
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.description.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesCategory && matchesSearch;
-    });
-  }, [selectedCategory, searchQuery]);
+  const { data: featuredProducts, isLoading: featuredLoading } = useFeaturedProducts();
+  const { data: categories } = useCategories();
+
+  const showFeatured = !selectedCategory && !searchQuery;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -37,14 +34,38 @@ const Index = () => {
             onCategoryChange={setSelectedCategory}
           />
           
-          {!selectedCategory && !searchQuery && (
-            <ProductGrid products={featuredProducts} title="Featured Products" />
+          {showFeatured && (
+            <>
+              {featuredLoading ? (
+                <div className="py-8">
+                  <Skeleton className="h-8 w-48 mb-6" />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                    {[...Array(4)].map((_, i) => (
+                      <Skeleton key={i} className="aspect-square rounded-lg" />
+                    ))}
+                  </div>
+                </div>
+              ) : featuredProducts && featuredProducts.length > 0 ? (
+                <ProductGrid products={featuredProducts} title="Featured Products" />
+              ) : null}
+            </>
           )}
           
-          <ProductGrid
-            products={filteredProducts}
-            title={selectedCategory || searchQuery ? "Results" : "All Products"}
-          />
+          {productsLoading ? (
+            <div className="py-8">
+              <Skeleton className="h-8 w-32 mb-6" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {[...Array(8)].map((_, i) => (
+                  <Skeleton key={i} className="aspect-square rounded-lg" />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <ProductGrid
+              products={allProducts || []}
+              title={selectedCategory || searchQuery ? "Results" : "All Products"}
+            />
+          )}
         </div>
       </main>
       
