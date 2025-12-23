@@ -111,80 +111,61 @@ export function useOrder(orderId: string) {
 export function useCreateOrder() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { items: cartItems, clearCart } = useCart();
+  const { clearCart } = useCart();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
       shippingAddress,
+      billingAddress,
       paymentMethod,
       couponCode,
+      notes,
     }: {
       shippingAddress: ShippingAddress;
-      paymentMethod: string;
+      billingAddress?: ShippingAddress;
+      paymentMethod?: string;
       couponCode?: string;
+      notes?: string;
     }) => {
       if (!user) throw new Error('Please login to place order');
-      if (cartItems.length === 0) throw new Error('Cart is empty');
 
-      // Calculate totals
-      const subtotal = cartItems.reduce((sum, item) => {
-        const price = item.product_variants?.price ?? item.products?.price ?? 0;
-        return sum + (price * item.quantity);
-      }, 0);
+      // Use secure server-side function to create order with validated prices
+      const { data, error } = await supabase.rpc('create_validated_order', {
+        p_shipping_address: JSON.parse(JSON.stringify(shippingAddress)),
+        p_billing_address: billingAddress ? JSON.parse(JSON.stringify(billingAddress)) : null,
+        p_payment_method: paymentMethod || null,
+        p_coupon_code: couponCode || null,
+        p_notes: notes || null,
+      });
+
+      if (error) throw error;
       
-      const shippingAmount = subtotal > 500 ? 0 : 50; // Free shipping over ₹500
-      const totalAmount = subtotal + shippingAmount;
-
-      // Generate order number
-      const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
-      // Create order
-      const orderInsert = {
-        order_number: orderNumber,
-        user_id: user.id,
-        status: 'pending' as const,
-        payment_status: 'pending' as const,
-        payment_method: paymentMethod,
-        subtotal,
-        shipping_amount: shippingAmount,
-        total_amount: totalAmount,
-        coupon_code: couponCode,
-        shipping_address: JSON.parse(JSON.stringify(shippingAddress)),
+      // The function returns order details as JSONB
+      const orderResult = data as {
+        order_id: string;
+        order_number: string;
+        subtotal: number;
+        shipping_amount: number;
+        tax_amount: number;
+        discount_amount: number;
+        total_amount: number;
       };
 
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert(orderInsert)
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      // Create order items
-      const orderItems = cartItems.map(item => ({
-        order_id: order.id,
-        product_id: item.product_id,
-        variant_id: item.variant_id,
-        product_name: item.products?.name ?? 'Unknown Product',
-        product_image: null,
-        variant_name: item.product_variants?.name ?? null,
-        quantity: item.quantity,
-        unit_price: item.product_variants?.price ?? item.products?.price ?? 0,
-        total_price: (item.product_variants?.price ?? item.products?.price ?? 0) * item.quantity,
-      }));
-
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
-
-      if (itemsError) throw itemsError;
-
-      return order as unknown as OrderData;
+      return {
+        id: orderResult.order_id,
+        order_number: orderResult.order_number,
+        subtotal: orderResult.subtotal,
+        shipping_amount: orderResult.shipping_amount,
+        tax_amount: orderResult.tax_amount,
+        discount_amount: orderResult.discount_amount,
+        total_amount: orderResult.total_amount,
+      } as unknown as OrderData;
     },
     onSuccess: (order) => {
       clearCart();
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
       toast({
         title: "Order placed!",
         description: `Your order ${order.order_number} has been placed successfully.`,

@@ -714,6 +714,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_validated_order: {
+        Args: {
+          p_billing_address?: Json
+          p_coupon_code?: string
+          p_notes?: string
+          p_payment_method?: string
+          p_shipping_address: Json
+        }
+        Returns: Json
+      }
       generate_order_number: { Args: never; Returns: string }
       has_role: {
         Args: {
