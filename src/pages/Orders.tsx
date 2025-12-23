@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Package, ChevronRight, CheckCircle, Clock, XCircle, Truck } from "lucide-react";
+import { Package, ChevronRight, CheckCircle, Clock, XCircle, Truck, ExternalLink, MapPin, Loader2 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,38 @@ const Orders = () => {
   const successOrderNumber = searchParams.get("success");
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
+
+  const handleCancelOrder = async (orderId: string, orderNumber: string) => {
+    if (!confirm("Are you sure you want to cancel this order?")) return;
+    
+    setCancellingOrderId(orderId);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'cancelled' })
+        .eq('id', orderId)
+        .eq('user_id', user?.id)
+        .eq('status', 'pending');
+      
+      if (error) throw error;
+      
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      toast({
+        title: "Order Cancelled",
+        description: `Order #${orderNumber} has been cancelled.`,
+      });
+    } catch (error) {
+      console.error('Error cancelling order:', error);
+      toast({
+        title: "Error",
+        description: "Could not cancel the order. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
 
   // Subscribe to real-time order updates
   useEffect(() => {
@@ -194,6 +226,52 @@ const Orders = () => {
                     </div>
                   </div>
                   
+                  {/* Cancel Button for Pending Orders */}
+                  {order.status === 'pending' && (
+                    <div className="mt-4 pt-4 border-t border-border">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleCancelOrder(order.id, order.order_number)}
+                        disabled={cancellingOrderId === order.id}
+                      >
+                        {cancellingOrderId === order.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Cancelling...
+                          </>
+                        ) : (
+                          <>
+                            <XCircle className="h-4 w-4 mr-2" />
+                            Cancel Order
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Tracking Information for Shipped Orders */}
+                  {order.status === 'shipped' && order.tracking_number && (
+                    <div className="mt-4 pt-4 border-t border-border">
+                      <div className="flex items-center gap-2 text-sm">
+                        <MapPin className="h-4 w-4 text-primary" />
+                        <span className="text-muted-foreground">Tracking:</span>
+                        <span className="font-medium text-foreground">{order.tracking_number}</span>
+                        {order.tracking_url && (
+                          <a
+                            href={order.tracking_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-primary hover:underline ml-2"
+                          >
+                            Track Package
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Order Items Preview */}
                   {order.order_items && order.order_items.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-border">
