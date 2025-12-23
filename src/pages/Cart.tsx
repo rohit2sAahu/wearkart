@@ -167,8 +167,8 @@ const Cart = () => {
                   </p>
                 )}
                 
-                <Button variant="hero" size="xl" className="w-full mt-6">
-                  Proceed to Checkout
+                <Button variant="hero" size="xl" className="w-full mt-6" asChild>
+                  <Link to="/checkout">Proceed to Checkout</Link>
                 </Button>
                 
                 <Button variant="outline" className="w-full mt-3" asChild>
