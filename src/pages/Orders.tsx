@@ -1,5 +1,6 @@
+import { useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Package, ChevronRight, CheckCircle } from "lucide-react";
+import { Package, ChevronRight, CheckCircle, Clock, XCircle, Truck } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -8,10 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { useOrders } from "@/hooks/useOrders";
 import { useAuth } from "@/context/AuthContext";
 import { format } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 const statusColors: Record<string, string> = {
   pending: "bg-warning/10 text-warning border-warning/20",
-  confirmed: "bg-primary/10 text-primary border-primary/20",
+  confirmed: "bg-success/10 text-success border-success/20",
   processing: "bg-primary/10 text-primary border-primary/20",
   shipped: "bg-primary/10 text-primary border-primary/20",
   delivered: "bg-success/10 text-success border-success/20",
@@ -19,11 +23,85 @@ const statusColors: Record<string, string> = {
   refunded: "bg-muted text-muted-foreground border-muted",
 };
 
+const statusIcons: Record<string, React.ReactNode> = {
+  pending: <Clock className="h-4 w-4" />,
+  confirmed: <CheckCircle className="h-4 w-4" />,
+  processing: <Package className="h-4 w-4" />,
+  shipped: <Truck className="h-4 w-4" />,
+  delivered: <CheckCircle className="h-4 w-4" />,
+  cancelled: <XCircle className="h-4 w-4" />,
+  refunded: <XCircle className="h-4 w-4" />,
+};
+
+const statusMessages: Record<string, string> = {
+  pending: "Waiting for seller confirmation",
+  confirmed: "Order accepted by seller",
+  processing: "Order is being prepared",
+  shipped: "Order has been shipped",
+  delivered: "Order delivered successfully",
+  cancelled: "Order was cancelled",
+  refunded: "Order has been refunded",
+};
+
 const Orders = () => {
   const { user } = useAuth();
   const { orders, isLoading } = useOrders();
   const [searchParams] = useSearchParams();
   const successOrderNumber = searchParams.get("success");
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  // Subscribe to real-time order updates
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('orders-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('Order updated:', payload);
+          queryClient.invalidateQueries({ queryKey: ['orders'] });
+          
+          const newStatus = payload.new.status as string;
+          const orderNumber = payload.new.order_number as string;
+          
+          if (newStatus === 'confirmed') {
+            toast({
+              title: "Order Accepted! 🎉",
+              description: `Your order #${orderNumber} has been confirmed by the seller.`,
+            });
+          } else if (newStatus === 'cancelled') {
+            toast({
+              title: "Order Cancelled",
+              description: `Your order #${orderNumber} has been cancelled.`,
+              variant: "destructive",
+            });
+          } else if (newStatus === 'shipped') {
+            toast({
+              title: "Order Shipped! 📦",
+              description: `Your order #${orderNumber} is on its way.`,
+            });
+          } else if (newStatus === 'delivered') {
+            toast({
+              title: "Order Delivered! ✅",
+              description: `Your order #${orderNumber} has been delivered.`,
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, queryClient, toast]);
 
   if (!user) {
     return (
@@ -92,11 +170,15 @@ const Orders = () => {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <p className="font-semibold text-foreground">#{order.order_number}</p>
-                        <Badge variant="outline" className={statusColors[order.status]}>
+                        <Badge variant="outline" className={`${statusColors[order.status]} flex items-center gap-1`}>
+                          {statusIcons[order.status]}
                           {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground">
+                        {statusMessages[order.status]}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
                         Placed on {format(new Date(order.created_at), "MMM d, yyyy 'at' h:mm a")}
                       </p>
                     </div>
