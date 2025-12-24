@@ -9,6 +9,7 @@ interface AuthContextType {
   profile: Profile | null;
   role: AppRole | null;
   isAdmin: boolean;
+  isSeller: boolean;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, fullName: string) => Promise<{ error: Error | null }>;
@@ -117,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const isAdmin = role === 'admin';
+  const isSeller = role === 'seller' || role === 'admin';
 
   return (
     <AuthContext.Provider
@@ -126,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         role,
         isAdmin,
+        isSeller,
         isLoading,
         signIn,
         signUp,
