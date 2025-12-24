@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, CreditCard, Truck, Shield } from "lucide-react";
+import { ArrowLeft, CreditCard, Truck, Shield, Tag, X, Banknote, Check, Loader2 } from "lucide-react";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/hooks/useCart";
 import { useCreateOrder, ShippingAddress } from "@/hooks/useOrders";
+import { useCoupon } from "@/hooks/useCoupon";
 import { useAuth } from "@/context/AuthContext";
 
 const Checkout = () => {
@@ -30,6 +32,9 @@ const Checkout = () => {
   });
   
   const [couponCode, setCouponCode] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"cod" | "online">("cod");
+  
+  const { validation, isValidating, applyCoupon, removeCoupon, appliedCode } = useCoupon(couponCode, totalPrice);
 
   if (!user) {
     return (
@@ -81,8 +86,9 @@ const Checkout = () => {
     );
   }
 
+  const discount = validation.isValid ? validation.discount : 0;
   const shipping = totalPrice > 500 ? 0 : 50;
-  const orderTotal = totalPrice + shipping;
+  const orderTotal = totalPrice + shipping - discount;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,11 +96,11 @@ const Checkout = () => {
     try {
       const order = await createOrder.mutateAsync({
         shippingAddress: formData,
-        paymentMethod: "cod",
-        couponCode: couponCode || undefined,
+        paymentMethod: paymentMethod,
+        couponCode: validation.isValid ? appliedCode || undefined : undefined,
       });
       
-      navigate(`/orders?success=${order.order_number}`);
+      navigate(`/order-confirmation?id=${order.id}&order=${order.order_number}`);
     } catch (error) {
       // Error handled in hook
     }
@@ -102,6 +108,17 @@ const Checkout = () => {
 
   const handleInputChange = (field: keyof ShippingAddress, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleApplyCoupon = () => {
+    if (couponCode.trim()) {
+      applyCoupon();
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setCouponCode("");
+    removeCoupon();
   };
 
   return (
@@ -214,6 +231,7 @@ const Checkout = () => {
                 </CardContent>
               </Card>
               
+              {/* Payment Method */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -221,13 +239,45 @@ const Checkout = () => {
                     Payment Method
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-3 p-4 border border-border rounded-lg bg-secondary/30">
-                    <input type="radio" id="cod" name="payment" defaultChecked />
-                    <Label htmlFor="cod" className="cursor-pointer flex-1">
-                      <span className="font-medium">Cash on Delivery</span>
+                <CardContent className="space-y-3">
+                  {/* COD Option */}
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMethod("cod")}
+                    className={`w-full flex items-center gap-4 p-4 border rounded-lg transition-all ${
+                      paymentMethod === "cod"
+                        ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                        : "border-border hover:border-primary/50"
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      paymentMethod === "cod" ? "bg-primary text-primary-foreground" : "bg-secondary"
+                    }`}>
+                      <Banknote className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-medium text-foreground">Cash on Delivery</p>
                       <p className="text-sm text-muted-foreground">Pay when you receive your order</p>
-                    </Label>
+                    </div>
+                    {paymentMethod === "cod" && (
+                      <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                        <Check className="h-4 w-4 text-primary-foreground" />
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Online Payment - Disabled */}
+                  <div
+                    className="w-full flex items-center gap-4 p-4 border border-border rounded-lg opacity-50 cursor-not-allowed"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
+                      <CreditCard className="h-5 w-5 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-medium text-muted-foreground">Online Payment</p>
+                      <p className="text-sm text-muted-foreground">Coming soon - UPI, Cards, Net Banking</p>
+                    </div>
+                    <Badge variant="secondary">Soon</Badge>
                   </div>
                 </CardContent>
               </Card>
@@ -273,15 +323,57 @@ const Checkout = () => {
                   
                   {/* Coupon */}
                   <div>
-                    <Label htmlFor="coupon">Coupon Code</Label>
-                    <div className="flex gap-2 mt-1">
-                      <Input
-                        id="coupon"
-                        placeholder="Enter code"
-                        value={couponCode}
-                        onChange={(e) => setCouponCode(e.target.value)}
-                      />
-                    </div>
+                    <Label htmlFor="coupon" className="flex items-center gap-2">
+                      <Tag className="h-4 w-4" />
+                      Promo Code
+                    </Label>
+                    {appliedCode && validation.isValid ? (
+                      <div className="mt-2 flex items-center justify-between p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Check className="h-4 w-4 text-primary" />
+                          <span className="font-medium text-primary">{appliedCode}</span>
+                          <span className="text-sm text-muted-foreground">
+                            (-₹{validation.discount.toFixed(2)})
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleRemoveCoupon}
+                          className="h-8 w-8 p-0"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        <div className="flex gap-2">
+                          <Input
+                            id="coupon"
+                            placeholder="Enter promo code"
+                            value={couponCode}
+                            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                            className="uppercase"
+                          />
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={handleApplyCoupon}
+                            disabled={!couponCode.trim() || isValidating}
+                          >
+                            {isValidating ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              "Apply"
+                            )}
+                          </Button>
+                        </div>
+                        {validation.errorMessage && (
+                          <p className="text-sm text-destructive">{validation.errorMessage}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                   
                   <Separator />
@@ -292,6 +384,12 @@ const Checkout = () => {
                       <span className="text-muted-foreground">Subtotal</span>
                       <span className="font-medium text-foreground">₹{totalPrice.toFixed(2)}</span>
                     </div>
+                    {discount > 0 && (
+                      <div className="flex justify-between text-primary">
+                        <span>Discount</span>
+                        <span>-₹{discount.toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Shipping</span>
                       <span className="font-medium text-foreground">
@@ -318,7 +416,7 @@ const Checkout = () => {
                     className="w-full"
                     disabled={createOrder.isPending}
                   >
-                    {createOrder.isPending ? "Placing Order..." : "Place Order"}
+                    {createOrder.isPending ? "Placing Order..." : "Place Order (COD)"}
                   </Button>
                   
                   <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
