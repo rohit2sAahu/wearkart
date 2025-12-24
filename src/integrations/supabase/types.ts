@@ -482,6 +482,7 @@ export type Database = {
           meta_title: string | null
           name: string
           price: number
+          seller_id: string | null
           short_description: string | null
           sku: string | null
           slug: string
@@ -505,6 +506,7 @@ export type Database = {
           meta_title?: string | null
           name: string
           price: number
+          seller_id?: string | null
           short_description?: string | null
           sku?: string | null
           slug: string
@@ -528,6 +530,7 @@ export type Database = {
           meta_title?: string | null
           name?: string
           price?: number
+          seller_id?: string | null
           short_description?: string | null
           sku?: string | null
           slug?: string
@@ -551,8 +554,13 @@ export type Database = {
           created_at: string
           email: string | null
           full_name: string | null
+          gst_number: string | null
           id: string
+          is_verified_seller: boolean | null
           phone: string | null
+          seller_rating: number | null
+          shop_description: string | null
+          shop_name: string | null
           updated_at: string
           user_id: string
         }
@@ -561,8 +569,13 @@ export type Database = {
           created_at?: string
           email?: string | null
           full_name?: string | null
+          gst_number?: string | null
           id?: string
+          is_verified_seller?: boolean | null
           phone?: string | null
+          seller_rating?: number | null
+          shop_description?: string | null
+          shop_name?: string | null
           updated_at?: string
           user_id: string
         }
@@ -571,8 +584,13 @@ export type Database = {
           created_at?: string
           email?: string | null
           full_name?: string | null
+          gst_number?: string | null
           id?: string
+          is_verified_seller?: boolean | null
           phone?: string | null
+          seller_rating?: number | null
+          shop_description?: string | null
+          shop_name?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -733,6 +751,7 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      is_seller: { Args: never; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "customer" | "seller"

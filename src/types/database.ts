@@ -1,4 +1,4 @@
-export type AppRole = 'admin' | 'customer';
+export type AppRole = 'admin' | 'customer' | 'seller';
 export type OrderStatus = 'pending' | 'confirmed' | 'processing' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
 export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded';
 
@@ -9,6 +9,11 @@ export interface Profile {
   email: string | null;
   phone: string | null;
   avatar_url: string | null;
+  shop_name: string | null;
+  shop_description: string | null;
+  gst_number: string | null;
+  is_verified_seller: boolean;
+  seller_rating: number;
   created_at: string;
   updated_at: string;
 }
@@ -53,6 +58,7 @@ export interface Product {
   is_featured: boolean;
   meta_title: string | null;
   meta_description: string | null;
+  seller_id: string | null;
   created_at: string;
   updated_at: string;
   // Relations
@@ -82,6 +88,15 @@ export interface ProductVariant {
   attributes: Record<string, string>;
   is_active: boolean;
   created_at: string;
+}
+
+export interface ProductSpecification {
+  model_number?: string;
+  warranty?: string;
+  material?: string;
+  size?: string;
+  color?: string;
+  [key: string]: string | undefined;
 }
 
 export interface Address {
